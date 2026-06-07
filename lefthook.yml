@@ -1,0 +1,10 @@
+pre-commit:
+  commands:
+    pre-commit:
+      run: just pre-commit
+      stage_fixed: true
+
+pre-push:
+  commands:
+    pre-push:
+      run: just pre-push

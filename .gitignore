@@ -1,0 +1,11 @@
+# scratch artifacts from rustdoc JSON exploration
+out-*.json
+reqwest.json
+reqwest-latest.json.zst
+*.json.zst
+
+# rust
+/target
+
+#internal docs
+/internal
