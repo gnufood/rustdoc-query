@@ -1,0 +1,11 @@
+[package]
+name = "rustdoc-fts5-tokenizer"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+rusqlite = { version = "=0.37.0", features = ["bundled"] }
