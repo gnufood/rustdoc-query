@@ -1,0 +1,6 @@
+{
+  "crate_name": "reqwest",
+  "path": "reqwest::Client::get",
+  "include_impls": true,
+  "full_docs": true
+}

@@ -1,0 +1,21 @@
+{
+  "status": "ok",
+  "result": {
+    "path": "reqwest",
+    "resolved_version": "0.13.4",
+    "docs_truncated": false,
+    "totals": {
+      "direct": [{"kind": "module", "count": 1}, {"kind": "struct", "count": 1}],
+      "subtree": [{"kind": "module", "count": 2}, {"kind": "struct", "count": 3}, {"kind": "trait", "count": 1}, {"kind": "enum", "count": 1}, {"kind": "function", "count": 4}]
+    },
+    "items": []
+  },
+  "metadata": {
+    "version": {
+      "requested_version": "latest",
+      "resolved_version": "0.13.4",
+      "status": "not_compared",
+      "message": "No dependency version was supplied."
+    }
+  }
+}

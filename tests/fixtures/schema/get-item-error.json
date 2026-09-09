@@ -1,0 +1,10 @@
+{
+  "status": "error",
+  "error": {
+    "code": "item_not_found",
+    "message": "no public item `reqwest::Missing` in `reqwest` 0.13.4",
+    "crate_name": "reqwest",
+    "resolved_version": "0.13.4",
+    "path": "reqwest::Missing"
+  }
+}

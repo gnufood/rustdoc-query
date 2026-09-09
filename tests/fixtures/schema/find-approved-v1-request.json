@@ -1,0 +1,5 @@
+{
+  "crate_name": "reqwest",
+  "query": "Client",
+  "output_format": "json"
+}

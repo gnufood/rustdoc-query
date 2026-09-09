@@ -1,0 +1,9 @@
+{
+  "crate_name": "reqwest",
+  "version": "0.13.4",
+  "query": "Client",
+  "kind": "struct",
+  "with_summary": true,
+  "page_size": 50,
+  "output_format": "json"
+}

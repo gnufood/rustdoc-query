@@ -1,0 +1,7 @@
+{
+  "crate_name": "reqwest",
+  "version": "0.13.4",
+  "module": "reqwest::header",
+  "full_docs": false,
+  "output_format": "toon"
+}

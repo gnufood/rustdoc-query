@@ -1,0 +1,13 @@
+{
+  "status": "ok",
+  "result": {
+    "rows": [{"path": "reqwest::Client", "kind": "struct", "summary": "An HTTP client."}],
+    "next_cursor": "eyJ2IjoxfQ",
+    "has_more": true,
+    "resolved_version": "0.13.4"
+  },
+  "metadata": {
+    "cache": {"source": "memory", "status": "hit", "load_duration_ms": 1, "stale": false},
+    "version": {"requested_version": "latest", "resolved_version": "0.13.4", "status": "not_compared", "message": "No dependency version was supplied."}
+  }
+}

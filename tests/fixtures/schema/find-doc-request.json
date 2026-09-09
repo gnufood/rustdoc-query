@@ -1,0 +1,7 @@
+{
+  "crate_name": "reqwest",
+  "doc_query": "send HTTP request",
+  "module": "reqwest::blocking",
+  "cursor": "eyJ2IjoxfQ",
+  "page_size": 25
+}
