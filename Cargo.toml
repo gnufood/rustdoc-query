@@ -50,7 +50,7 @@ sha2 = "0.10"
 toon-format = { version = "0.5", default-features = false }                       # lib only: default=["cli"] pulls a TUI stack
 
 # Cache sidecar
-postcard = { version = "1", features = ["use-std"] }
+postcard = { version = "1", default-features = false, features = ["use-std"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
 
 # Supporting
@@ -67,6 +67,9 @@ workspace = true
 
 [dev-dependencies]
 jsonschema = { version = "0.53.0", default-features = false }
+
+[package.metadata.cargo-machete]
+ignored = ["schemars"]
 
 # The profile that 'dist' will build with
 [profile.dist]

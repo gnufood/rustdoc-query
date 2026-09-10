@@ -8,8 +8,6 @@ publish = false
 workspace = true
 
 [dependencies]
-rustdoc-query = { path = ".." }
 schemars08 = { package = "schemars", version = "=0.8.22" }
 serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread"] }
 typify = "0.7.0"
