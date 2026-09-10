@@ -51,3 +51,23 @@ fn rank_features_are_built_and_reloaded_with_the_fts_sidecar() {
         2
     );
 }
+
+#[test]
+fn prior_fts_versions_rebuild() {
+    let mut conn = rusqlite::Connection::open_in_memory().expect("in-memory SQLite");
+    register_rust_identifier_tokenizer(&conn).expect("register identifier tokenizer");
+    let rows = rows();
+
+    schema::ensure_built(&mut conn, &rows, "fixture-fingerprint").expect("build index");
+    conn.execute("UPDATE fts_metadata SET schema_version = 1", [])
+        .expect("make metadata stale");
+
+    schema::ensure_built(&mut conn, &rows, "fixture-fingerprint").expect("rebuild index");
+    let version: i64 = conn
+        .query_row("SELECT schema_version FROM fts_metadata", [], |row| {
+            row.get(0)
+        })
+        .expect("read rebuilt version");
+
+    assert_eq!(version, schema::FTS_SCHEMA_VERSION);
+}

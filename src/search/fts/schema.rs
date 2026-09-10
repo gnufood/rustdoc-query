@@ -9,7 +9,7 @@ use super::rank::RankFeatures;
 
 /// Bumped whenever the DDL or the tokenizer's output changes, invalidating
 /// existing sidecars whose stored tokens no longer match what a query produces.
-pub(super) const FTS_SCHEMA_VERSION: i64 = 9;
+pub(super) const FTS_SCHEMA_VERSION: i64 = 2;
 
 /// `porter rust_ident` splits Rust identifiers before stemming.
 ///

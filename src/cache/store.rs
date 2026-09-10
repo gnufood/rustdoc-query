@@ -2,6 +2,15 @@ use std::path::{Path, PathBuf};
 
 use rustdoc_types::Crate;
 
+const SIDECAR_VERSION: u8 = 2;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SidecarEnvelope {
+    version: u8,
+    rustdoc_format: u32,
+    krate: Crate,
+}
+
 /// Non-fatal failures while reading or refreshing a derived postcard sidecar.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum SidecarError {
@@ -24,6 +33,13 @@ pub(crate) enum SidecarError {
         path: PathBuf,
         found: u32,
         expected: u32,
+    },
+
+    #[error("sidecar `{path}` has application format {found}; expected {expected}")]
+    VersionMismatch {
+        path: PathBuf,
+        found: u8,
+        expected: u8,
     },
 
     #[error("failed to encode rustdoc crate as a postcard sidecar")]
@@ -68,7 +84,7 @@ impl CacheStore {
 
     pub(super) fn sidecar_path(&self, krate: &str, version: &str) -> PathBuf {
         self.dir.join(format!(
-            "{krate}-{version}.fv{}.postcard",
+            "{krate}-{version}.cv{SIDECAR_VERSION}.fv{}.postcard",
             rustdoc_types::FORMAT_VERSION
         ))
     }
@@ -91,20 +107,35 @@ impl CacheStore {
                 });
             }
         };
-        match postcard::from_bytes::<Crate>(&bytes) {
-            Ok(parsed) if parsed.format_version == rustdoc_types::FORMAT_VERSION => {
-                SidecarRead::Hit(parsed)
+        match postcard::from_bytes::<SidecarEnvelope>(&bytes) {
+            Ok(envelope) if envelope.version != SIDECAR_VERSION => {
+                SidecarRead::Rejected(SidecarError::VersionMismatch {
+                    path: path.to_path_buf(),
+                    found: envelope.version,
+                    expected: SIDECAR_VERSION,
+                })
             }
-            Ok(parsed) => SidecarRead::Rejected(SidecarError::FormatMismatch {
-                path: path.to_path_buf(),
-                found: parsed.format_version,
-                expected: rustdoc_types::FORMAT_VERSION,
-            }),
+            Ok(envelope) if envelope.rustdoc_format != rustdoc_types::FORMAT_VERSION => {
+                SidecarRead::Rejected(SidecarError::FormatMismatch {
+                    path: path.to_path_buf(),
+                    found: envelope.rustdoc_format,
+                    expected: rustdoc_types::FORMAT_VERSION,
+                })
+            }
+            Ok(envelope) => SidecarRead::Hit(envelope.krate),
             Err(source) => SidecarRead::Rejected(SidecarError::Decode {
                 path: path.to_path_buf(),
                 source,
             }),
         }
+    }
+
+    pub(super) fn encode_sidecar(krate: &Crate) -> Result<Vec<u8>, postcard::Error> {
+        postcard::to_stdvec(&SidecarEnvelope {
+            version: SIDECAR_VERSION,
+            rustdoc_format: krate.format_version,
+            krate: krate.clone(),
+        })
     }
 
     pub(super) async fn write_atomic(&self, path: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -118,7 +149,10 @@ impl CacheStore {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use rustdoc_types::{Crate, Id, Target};
 
     use super::*;
 
@@ -131,6 +165,22 @@ mod tests {
             std::process::id()
         ));
         CacheStore::new(dir)
+    }
+
+    fn fixture_krate() -> Crate {
+        Crate {
+            root: Id(0),
+            crate_version: Some("1.0.0".to_owned()),
+            includes_private: false,
+            index: HashMap::new(),
+            paths: HashMap::new(),
+            external_crates: HashMap::new(),
+            target: Target {
+                triple: String::new(),
+                target_features: Vec::new(),
+            },
+            format_version: rustdoc_types::FORMAT_VERSION,
+        }
     }
 
     #[tokio::test]
@@ -164,6 +214,35 @@ mod tests {
         assert!(matches!(
             store.read_sidecar(&path).await,
             SidecarRead::Rejected(SidecarError::Decode { .. })
+        ));
+        tokio::fs::remove_dir_all(store.dir()).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn v1_sidecar_is_rejected_and_v2_uses_a_distinct_path() {
+        let store = test_store();
+        let path = store.sidecar_path("fixture", "1.0.0");
+        let bytes = postcard::to_stdvec(&SidecarEnvelope {
+            version: 1,
+            rustdoc_format: rustdoc_types::FORMAT_VERSION,
+            krate: fixture_krate(),
+        })
+        .unwrap();
+
+        store.write_atomic(&path, &bytes).await.unwrap();
+
+        assert!(path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".cv2.fv"));
+        assert!(matches!(
+            store.read_sidecar(&path).await,
+            SidecarRead::Rejected(SidecarError::VersionMismatch {
+                found: 1,
+                expected: 2,
+                ..
+            })
         ));
         tokio::fs::remove_dir_all(store.dir()).await.unwrap();
     }

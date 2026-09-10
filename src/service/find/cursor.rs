@@ -11,7 +11,7 @@ use crate::contract::generated::{
 
 // Bump when the payload shape changes, so mismatched cursors fail validation
 // instead of decoding into the wrong shape.
-const CURSOR_VERSION: u8 = 3;
+const CURSOR_VERSION: u8 = 2;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Context {
@@ -137,5 +137,23 @@ mod tests {
         }));
         assert!(decode(&resumed, "1.0.0").is_ok());
         assert!(decode(&resumed, "2.0.0").is_err());
+    }
+
+    #[test]
+    fn prior_cursor_versions_are_stale() {
+        let original = request(serde_json::json!({ "crate_name": "demo" }));
+        let payload = Payload {
+            v: 1,
+            context: context(&original, "1.0.0"),
+            position: Position::Memory {
+                order: MemoryOrder::Alphabetical {
+                    path: "demo::Client".to_owned(),
+                },
+            },
+        };
+        let token = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).expect("payload encodes"));
+        let resumed = request(serde_json::json!({ "crate_name": "demo", "cursor": token }));
+
+        assert!(decode(&resumed, "1.0.0").is_err());
     }
 }

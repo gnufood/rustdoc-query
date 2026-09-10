@@ -287,7 +287,7 @@ impl CrateCache {
         report.timings.decode = started.elapsed();
         // Sidecar refresh failures are logged, never propagated; the `.zst` blob remains authoritative.
         let started = std::time::Instant::now();
-        match postcard::to_stdvec(&parsed) {
+        match CacheStore::encode_sidecar(&parsed) {
             Ok(encoded) => {
                 report.timings.sidecar_encode = started.elapsed();
                 let started = std::time::Instant::now();
@@ -384,7 +384,7 @@ mod tests {
         assert!(blob.to_string_lossy().ends_with("serde-1.0.0.json.zst"));
         assert!(side
             .to_string_lossy()
-            .ends_with(&format!("fv{}.postcard", rustdoc_types::FORMAT_VERSION)));
+            .ends_with(&format!("cv2.fv{}.postcard", rustdoc_types::FORMAT_VERSION)));
         assert_eq!(blob.parent(), Some(c.store.dir()));
     }
 
