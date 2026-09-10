@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.91.1
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: --locked
+      - run: mise exec -- just ci
