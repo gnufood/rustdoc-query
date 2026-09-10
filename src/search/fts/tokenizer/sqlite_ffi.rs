@@ -8,9 +8,9 @@ use std::{
     ptr::{self, NonNull},
 };
 
-use rusqlite::{self, ffi};
+use tokio_rusqlite::rusqlite::{self, ffi};
 
-use crate::identifier::{tokenize_document, tokenize_query, Token};
+use super::identifier::{tokenize_document, tokenize_query, Token};
 
 const TOKENIZER_NAME: &CStr = c"rust_ident";
 const FTS5_API_POINTER_TYPE: &CStr = c"fts5_api_ptr";
@@ -33,7 +33,9 @@ static IDENTIFIER_TOKENIZER: ffi::fts5_tokenizer_v2 = ffi::fts5_tokenizer_v2 {
 /// # Errors
 ///
 /// Returns the `SQLite` error produced while registering the tokenizer.
-pub fn register_rust_identifier_tokenizer(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+pub(crate) fn register_rust_identifier_tokenizer(
+    conn: &rusqlite::Connection,
+) -> rusqlite::Result<()> {
     // SAFETY: `conn` remains borrowed until all raw SQLite calls complete.
     let db = unsafe { conn.handle() };
     let api = unsafe { fts5_api(db)? };

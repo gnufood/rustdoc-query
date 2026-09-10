@@ -1,7 +1,7 @@
-use rustdoc_fts5_tokenizer::register_rust_identifier_tokenizer;
 use tokio_rusqlite::rusqlite;
 
 use super::schema::CREATE_TABLES;
+use super::tokenizer::register_rust_identifier_tokenizer;
 
 mod indexing;
 mod rank;

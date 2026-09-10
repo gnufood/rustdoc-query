@@ -1,4 +1,4 @@
-use rustdoc_fts5_tokenizer::query_terms;
+use crate::search::fts::tokenizer::query_terms;
 
 const STOPWORDS: &[&str] = &[
     "a", "an", "and", "for", "in", "of", "on", "or", "the", "to", "with",

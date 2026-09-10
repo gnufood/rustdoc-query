@@ -1,4 +1,4 @@
-use crate::identifier::{tokenize_document, tokenize_query, Token};
+use crate::search::fts::tokenizer::identifier::{tokenize_document, tokenize_query, Token};
 
 fn terms(tokens: Vec<Token>) -> Vec<(String, bool)> {
     tokens

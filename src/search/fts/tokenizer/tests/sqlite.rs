@@ -1,6 +1,6 @@
-use rusqlite::Connection;
+use tokio_rusqlite::rusqlite::Connection;
 
-use crate::register_rust_identifier_tokenizer;
+use crate::search::fts::tokenizer::register_rust_identifier_tokenizer;
 
 #[test]
 fn registered_tokenizer_preserves_identifier_matching_and_snippet_offsets() {

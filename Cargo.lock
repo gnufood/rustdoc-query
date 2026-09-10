@@ -1673,13 +1673,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustdoc-fts5-tokenizer"
-version = "0.0.0"
-dependencies = [
- "rusqlite",
-]
-
-[[package]]
 name = "rustdoc-query"
 version = "0.1.0"
 dependencies = [
@@ -1691,7 +1684,6 @@ dependencies = [
  "postcard",
  "reqwest",
  "rmcp",
- "rustdoc-fts5-tokenizer",
  "rustdoc-types",
  "schemars 1.2.1",
  "semver",

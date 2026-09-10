@@ -1,8 +1,8 @@
-use rustdoc_fts5_tokenizer::register_rust_identifier_tokenizer;
 use tokio_rusqlite::rusqlite;
 
 use crate::search::fts::index::IndexRow;
 use crate::search::fts::schema;
+use crate::search::fts::tokenizer::register_rust_identifier_tokenizer;
 
 fn rows() -> Vec<IndexRow> {
     vec![IndexRow {

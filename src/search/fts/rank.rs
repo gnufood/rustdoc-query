@@ -2,10 +2,10 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use rustdoc_fts5_tokenizer::{document_terms, query_terms};
 use tokio_rusqlite::rusqlite;
 
 use super::index::IndexRow;
+use super::tokenizer::{document_terms, query_terms};
 
 #[derive(Clone, Debug)]
 pub(super) struct RankFeatures {

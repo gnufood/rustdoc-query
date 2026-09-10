@@ -8,7 +8,7 @@ rust-version = "1.91"
 repository = "https://github.com/gnufood/rustdoc-query"
 
 [workspace]
-members = [".", "rustdoc-fts5-tokenizer", "xtask"]
+members = [".", "xtask"]
 default-members = ["."]
 resolver = "2"
 
@@ -49,7 +49,6 @@ toon-format = { version = "0.5", default-features = false }                     
 # Cache sidecar
 postcard = { version = "1", features = ["use-std"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
-rustdoc-fts5-tokenizer = { path = "rustdoc-fts5-tokenizer" }
 
 # Supporting
 nucleo-matcher = "0.3"

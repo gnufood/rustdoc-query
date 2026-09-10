@@ -19,7 +19,7 @@
         clippy::as_conversions
     )
 )]
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 
 pub(crate) mod cache;
 pub mod contract;

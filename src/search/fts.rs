@@ -1,12 +1,11 @@
 //! `SQLite` FTS5 sidecar.
 //!
-//! Tokenizer FFI is isolated in the tokenizer crate; this module owns safe
+//! Tokenizer FFI is isolated in the tokenizer module; this module owns safe
 //! database lifecycle and delegates index shape, match construction, and
 //! paginated reads to its children.
 
 use std::path::Path;
 
-use rustdoc_fts5_tokenizer::register_rust_identifier_tokenizer;
 use rustdoc_types::{Crate, ItemKind};
 use tokio_rusqlite::rusqlite;
 
@@ -19,6 +18,7 @@ mod rank;
 mod schema;
 #[cfg(test)]
 mod tests;
+pub(crate) mod tokenizer;
 
 /// Relevance remains the responsibility of the query layer, which has the
 /// crate's public-surface and rustdoc context.
@@ -57,7 +57,7 @@ impl FtsDb {
             .call(move |conn| -> rusqlite::Result<rank::RankFeatures> {
                 // Register on every open: FTS5 needs the tokenizer for both cold
                 // indexing and warm queries.
-                register_rust_identifier_tokenizer(conn)?;
+                tokenizer::register_rust_identifier_tokenizer(conn)?;
                 schema::ensure_built(conn, &rows, &fingerprint)
             })
             .await
