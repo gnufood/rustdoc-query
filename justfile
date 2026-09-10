@@ -41,7 +41,7 @@ release:
     #!/usr/bin/env bash
     set -euo pipefail
     version=$(git cliff --bumped-version | sed 's/^v//')
-    cargo release --workspace "$version" --execute
+    cargo release "$version" --execute
 
 ship: ci release
     git push origin HEAD --follow-tags
