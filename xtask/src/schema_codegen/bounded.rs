@@ -7,6 +7,7 @@ use serde_json::Value;
 #[derive(Debug)]
 pub(super) struct Spec {
     pub(super) name: String,
+    description: String,
     minimum: u64,
     maximum: u64,
     storage: &'static str,
@@ -39,6 +40,11 @@ fn bounded_integer(name: &str, definition: &Value) -> Option<Result<Spec, String
         (minimum <= maximum)
             .then(|| Spec {
                 name: name.to_owned(),
+                description: definition
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Schema-bounded integer value.")
+                    .to_owned(),
                 minimum,
                 maximum,
                 storage: storage_for(maximum),
@@ -67,6 +73,7 @@ pub(super) fn source(specs: &[Spec]) -> Result<String, String> {
             source,
             r#"
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Error returned when a value is outside the schema-defined range.
 pub struct {error} {{
     value: ::std::primitive::u64,
 }}
@@ -81,10 +88,13 @@ impl ::std::error::Error for {error} {{}}
 
 #[derive(::serde::Serialize, Clone, Debug, rmcp::schemars::JsonSchema)]
 #[serde(transparent)]
+/// {description}
 pub struct {name}(#[schemars(range(min = {minimum}, max = {maximum}))] ::std::primitive::{storage});
 
 impl {name} {{
+    /// Smallest value accepted by this schema type.
     pub const MINIMUM: ::std::primitive::u64 = {minimum};
+    /// Largest value accepted by this schema type.
     pub const MAXIMUM: ::std::primitive::u64 = {maximum};
 
     /// Creates a value within the schema-defined range.
@@ -104,6 +114,7 @@ impl {name} {{
     }}
 
     #[must_use]
+    /// Returns the validated integer value.
     pub fn get(&self) -> ::std::primitive::{storage} {{
         self.0
     }}
@@ -134,6 +145,7 @@ impl<'de> ::serde::Deserialize<'de> for {name} {{
 }}
 "#,
             name = spec.name,
+            description = spec.description,
             minimum = spec.minimum,
             maximum = spec.maximum,
             storage = spec.storage,

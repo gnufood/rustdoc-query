@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use super::generated::ToolContract;
 
-const CANONICAL_SCHEMA: &str = include_str!("../../schema/rustdoc-query.v1.schema.json");
+const CANONICAL_SCHEMA: &str = include_str!("../../schema/rustdoc-query.v2.schema.json");
 
 pub(super) fn input(contract: ToolContract) -> Result<Value, String> {
     let mut schema = rooted(contract.request)?;

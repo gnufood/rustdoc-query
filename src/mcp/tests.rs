@@ -7,7 +7,7 @@ use super::RustdocMcpServer;
 use crate::contract::generated::{FindOutcome, GetItemOutcome, OutputFormat, OverviewOutcome};
 use crate::service::RustdocQueryService;
 
-const SCHEMA: &str = include_str!("../../schema/rustdoc-query.v1.schema.json");
+const SCHEMA: &str = include_str!("../../schema/rustdoc-query.v2.schema.json");
 
 fn frame<T: serde::Serialize + super::generated::McpOutcome>(
     outcome: &T,

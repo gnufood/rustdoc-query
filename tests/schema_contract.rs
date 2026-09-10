@@ -1,15 +1,15 @@
-//! Contract fixtures and schema-to-Rust generation spike for public API v1.
+//! Contract fixtures and schema-to-Rust generation spike for public API v2.
 
 use serde_json::Value;
 
-#[path = "../schema/generated/rustdoc-query.v1.strict_option.rs"]
+#[path = "../schema/generated/rustdoc-query.v2.strict_option.rs"]
 mod strict_option;
 
 #[allow(dead_code, unreachable_pub)]
-#[path = "../schema/generated/rustdoc-query.v1.rs"]
+#[path = "../schema/generated/rustdoc-query.v2.rs"]
 mod generated;
 
-const SCHEMA: &str = include_str!("../schema/rustdoc-query.v1.schema.json");
+const SCHEMA: &str = include_str!("../schema/rustdoc-query.v2.schema.json");
 
 fn schema_for(definition: &str) -> Value {
     let mut schema: Value = serde_json::from_str(SCHEMA).expect("schema JSON is valid");

@@ -1,14 +1,17 @@
 //! Schema-derived Rust source generation.
 
 use std::{
+    collections::{BTreeMap, BTreeSet},
     fs,
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
+use quote::ToTokens;
 use schemars08::schema::RootSchema;
 use serde_json::Value;
+use syn::{Fields, Item, Type};
 use typify::{TypeSpace, TypeSpaceSettings};
 
 mod bounded;
@@ -17,10 +20,10 @@ mod mcp;
 #[cfg(test)]
 mod tests;
 
-const SCHEMA: &str = "schema/rustdoc-query.v1.schema.json";
-const TYPES: &str = "schema/generated/rustdoc-query.v1.rs";
-const DEFAULTS: &str = "schema/generated/rustdoc-query.v1.defaults.rs";
-const STRICT_OPTION: &str = "schema/generated/rustdoc-query.v1.strict_option.rs";
+const SCHEMA: &str = "schema/rustdoc-query.v2.schema.json";
+const TYPES: &str = "schema/generated/rustdoc-query.v2.rs";
+const DEFAULTS: &str = "schema/generated/rustdoc-query.v2.defaults.rs";
+const STRICT_OPTION: &str = "schema/generated/rustdoc-query.v2.strict_option.rs";
 const MCP: &str = "src/mcp/generated.rs";
 
 #[derive(Clone, Copy, Debug)]
@@ -98,18 +101,204 @@ fn generate_types(schema: &Value) -> Result<String, String> {
          {type_defaults}",
         type_space.to_stream(),
     ))?;
-    rustfmt(&add_strict_option_deserializers(&source))
+    let source = add_strict_option_deserializers(schema, &source)?;
+    let source = add_union_variant_docs(schema, &source)?;
+    rustfmt(&source)
 }
 
-fn add_strict_option_deserializers(source: &str) -> String {
-    const OPTION_ATTRIBUTE: &str =
-        "    #[serde(default, skip_serializing_if = \"::std::option::Option::is_none\")]";
-    source.replace(
-        OPTION_ATTRIBUTE,
-        &format!(
-            "{OPTION_ATTRIBUTE}\n    #[serde(deserialize_with = \"super::strict_option::deserialize\")]"
-        ),
+/// Adds docs for union variants whose schema descriptions Typify does not yet
+/// emit. The canonical schema remains the single documentation source.
+fn add_union_variant_docs(schema: &Value, source: &str) -> Result<String, String> {
+    let definitions = schema
+        .get("$defs")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "schema must declare $defs".to_owned())?;
+    let mut docs = BTreeMap::<String, BTreeMap<String, String>>::new();
+
+    for (type_name, definition) in definitions {
+        let Some(branches) = definition.get("oneOf").and_then(Value::as_array) else {
+            continue;
+        };
+        let variants = branches
+            .iter()
+            .filter_map(|branch| {
+                Some((
+                    branch.get("title")?.as_str()?.to_owned(),
+                    branch.get("description")?.as_str()?.to_owned(),
+                ))
+            })
+            .collect::<BTreeMap<_, _>>();
+        if !variants.is_empty() {
+            docs.insert(type_name.clone(), variants);
+        }
+    }
+
+    let mut file = syn::parse_file(source).map_err(|error| error.to_string())?;
+    for item in &mut file.items {
+        let Item::Enum(item_enum) = item else {
+            continue;
+        };
+        let Some(variants) = docs.get(&item_enum.ident.to_string()) else {
+            continue;
+        };
+        for variant in &mut item_enum.variants {
+            let Some(description) = variants.get(&variant.ident.to_string()) else {
+                continue;
+            };
+            variant.attrs.push(syn::parse_quote!(#[doc = #description]));
+        }
+    }
+
+    Ok(file.into_token_stream().to_string())
+}
+
+fn add_strict_option_deserializers(schema: &Value, source: &str) -> Result<String, String> {
+    let (optional_fields, optional_variant_fields) = schema_optional_fields(schema)?;
+    let mut file = syn::parse_file(source).map_err(|error| error.to_string())?;
+
+    for item in &mut file.items {
+        match item {
+            Item::Struct(item_struct) => {
+                let Some(fields) = optional_fields.get(&item_struct.ident.to_string()) else {
+                    continue;
+                };
+                let Fields::Named(named_fields) = &mut item_struct.fields else {
+                    continue;
+                };
+                add_strict_option_attributes(&mut named_fields.named, fields)?;
+            }
+            Item::Enum(item_enum) => {
+                let Some(variants) = optional_variant_fields.get(&item_enum.ident.to_string())
+                else {
+                    continue;
+                };
+                for variant in &mut item_enum.variants {
+                    let Some(fields) = variants.get(&variant.ident.to_string()) else {
+                        continue;
+                    };
+                    let Fields::Named(named_fields) = &mut variant.fields else {
+                        continue;
+                    };
+                    add_strict_option_attributes(&mut named_fields.named, fields)?;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(file.into_token_stream().to_string())
+}
+
+fn add_strict_option_attributes(
+    fields: &mut syn::punctuated::Punctuated<syn::Field, syn::Token![,]>,
+    optional_fields: &BTreeSet<String>,
+) -> Result<(), String> {
+    for field in fields {
+        let field_name = serialized_field_name(field)?;
+        if !optional_fields.contains(&field_name) || !is_option(&field.ty) {
+            continue;
+        }
+        field.attrs.push(syn::parse_quote!(
+            #[serde(deserialize_with = "super::strict_option::deserialize")]
+        ));
+    }
+    Ok(())
+}
+
+type OptionalFields = BTreeMap<String, BTreeSet<String>>;
+type OptionalVariantFields = BTreeMap<String, OptionalFields>;
+
+fn schema_optional_fields(
+    schema: &Value,
+) -> Result<(OptionalFields, OptionalVariantFields), String> {
+    let definitions = schema
+        .get("$defs")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "schema must declare $defs".to_owned())?;
+
+    let mut optional_fields = OptionalFields::new();
+    let mut optional_variant_fields = OptionalVariantFields::new();
+    for (name, definition) in definitions {
+        if let Some(fields) = optional_properties(definition) {
+            optional_fields.insert(name.clone(), fields);
+        }
+        let variants = definition
+            .get("oneOf")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|branch| {
+                Some((
+                    branch.get("title")?.as_str()?.to_owned(),
+                    optional_properties(branch)?,
+                ))
+            })
+            .collect::<OptionalFields>();
+        if !variants.is_empty() {
+            optional_variant_fields.insert(name.clone(), variants);
+        }
+    }
+    Ok((optional_fields, optional_variant_fields))
+}
+
+fn optional_properties(definition: &Value) -> Option<BTreeSet<String>> {
+    let properties = definition.get("properties")?.as_object()?;
+    let required = definition
+        .get("required")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect::<BTreeSet<_>>();
+    Some(
+        properties
+            .keys()
+            .filter(|property| !required.contains(property.as_str()))
+            .cloned()
+            .collect(),
     )
+}
+
+fn is_option(ty: &Type) -> bool {
+    matches!(
+        ty,
+        Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Option")
+    )
+}
+
+fn serialized_field_name(field: &syn::Field) -> Result<String, String> {
+    let mut name = field
+        .ident
+        .as_ref()
+        .map(ToString::to_string)
+        .ok_or_else(|| "schema-generated struct fields must be named".to_owned())?;
+    for attribute in &field.attrs {
+        if !attribute.path().is_ident("serde") {
+            continue;
+        }
+        attribute
+            .parse_nested_meta(|meta| {
+                if !meta.path.is_ident("rename") {
+                    if meta.input.peek(syn::Token![=]) {
+                        let value = meta.value()?;
+                        let _: syn::Expr = value.parse()?;
+                    } else if meta.input.peek(syn::token::Paren) {
+                        meta.parse_nested_meta(|nested| {
+                            if nested.input.peek(syn::Token![=]) {
+                                let value = nested.value()?;
+                                let _: syn::Expr = value.parse()?;
+                            }
+                            Ok(())
+                        })?;
+                    }
+                    return Ok(());
+                }
+                name = meta.value()?.parse::<syn::LitStr>()?.value();
+                Ok(())
+            })
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(name)
 }
 
 fn generate_defaults(schema: &Value) -> Result<String, String> {

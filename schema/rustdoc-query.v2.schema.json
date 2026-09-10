@@ -1,0 +1,803 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rustdoc-query:schema:v2",
+  "title": "rustdoc-query public API v2",
+  "description": "Schema-first contract for the rustdoc-query library and MCP adapter. The root is a registry of named contract types; consumers select a named definition with $ref.",
+  "x-mcp-tools": [
+    { "name": "crate_overview", "request": "OverviewRequest", "outcome": "OverviewOutcome" },
+    { "name": "find_items", "request": "FindRequest", "outcome": "FindOutcome" },
+    { "name": "get_item", "request": "GetItemRequest", "outcome": "GetItemOutcome" }
+  ],
+  "$defs": {
+    "OutputFormat": {
+      "type": "string",
+      "oneOf": [
+        { "const": "toon", "description": "Emit compact TOON text." },
+        { "const": "json", "description": "Emit the canonical JSON outcome." }
+      ],
+      "default": "json",
+      "description": "Encoding of the canonical generated outcome selected by a library or MCP consumer."
+    },
+    "RequestedVersion": {
+      "type": "string",
+      "minLength": 1,
+      "default": "latest",
+      "description": "A crates.io version or the literal latest."
+    },
+    "IncludeSummary": {
+      "type": "boolean",
+      "default": true,
+      "description": "Include a concise documentation summary for each result."
+    },
+    "PageCursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Opaque continuation cursor returned by an earlier find_items page."
+    },
+    "PageSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 50,
+      "description": "Maximum rows to return in this page."
+    },
+    "CrateName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Crate name as published on crates.io."
+    },
+    "DependencyVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The caller's resolved dependency version."
+    },
+    "PublicModulePath": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A public Rust module path."
+    },
+    "PublicItemPath": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A public Rust item path, optionally ending in an inherent method name."
+    },
+    "DocumentationQuery": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A non-empty full-text query over documentation and signatures."
+    },
+    "RustdocItemKind": {
+      "type": "string",
+      "oneOf": [
+        { "const": "module", "description": "A Rust module." },
+        { "const": "extern_crate", "description": "An extern crate declaration." },
+        { "const": "use", "description": "A use declaration or re-export." },
+        { "const": "struct", "description": "A struct." },
+        { "const": "struct_field", "description": "A struct field." },
+        { "const": "union", "description": "A union." },
+        { "const": "enum", "description": "An enum." },
+        { "const": "variant", "description": "An enum variant." },
+        { "const": "function", "description": "A function." },
+        { "const": "type_alias", "description": "A type alias." },
+        { "const": "constant", "description": "A constant." },
+        { "const": "trait", "description": "A trait." },
+        { "const": "trait_alias", "description": "A trait alias." },
+        { "const": "impl", "description": "An implementation block." },
+        { "const": "static", "description": "A static item." },
+        { "const": "extern_type", "description": "An extern type declaration." },
+        { "const": "macro", "description": "A declarative macro." },
+        { "const": "proc_attribute", "description": "An attribute procedural macro." },
+        { "const": "proc_derive", "description": "A derive procedural macro." },
+        { "const": "assoc_const", "description": "An associated constant." },
+        { "const": "assoc_type", "description": "An associated type." },
+        { "const": "primitive", "description": "A primitive type." },
+        { "const": "keyword", "description": "A Rust keyword." },
+        { "const": "attribute", "description": "A built-in attribute." }
+      ],
+      "description": "Exact rustdoc item kind. Values preserve rustdoc JSON distinctions and are never normalized into a lossy category."
+    },
+    "VariantKind": {
+      "type": "string",
+      "oneOf": [
+        { "const": "unit", "description": "A variant with no fields." },
+        { "const": "tuple", "description": "A variant with positional fields." },
+        { "const": "struct", "description": "A variant with named fields." }
+      ],
+      "description": "The field shape of an enum variant. This is distinct from RustdocItemKind."
+    },
+    "CacheSource": {
+      "type": "string",
+      "oneOf": [
+        { "const": "memory", "description": "The in-memory cache." },
+        { "const": "sidecar", "description": "A decoded local cache sidecar." },
+        { "const": "blob", "description": "A compressed local rustdoc blob." },
+        { "const": "network", "description": "A freshly downloaded rustdoc artifact." }
+      ],
+      "description": "The cache tier or source that supplied the rustdoc data."
+    },
+    "CacheMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Cache provenance and timing for the queried crate.",
+      "properties": {
+        "source": { "$ref": "#/$defs/CacheSource", "description": "Cache tier that supplied the rustdoc data." },
+        "status": {
+          "type": "string",
+          "oneOf": [
+            { "const": "hit", "description": "Usable data was already present at this cache tier." },
+            { "const": "miss", "description": "The request had to populate data beyond this cache tier." }
+          ],
+          "description": "Whether this request found usable data at the reported cache tier."
+        },
+        "load_duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Elapsed time spent preparing the queried crate."
+        },
+        "stale": {
+          "type": "boolean",
+          "description": "Whether the returned data is known to be stale."
+        },
+        "age_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Age of the durable source when known."
+        }
+      },
+      "required": ["source", "status", "load_duration_ms", "stale"]
+    },
+    "VersionComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Agreement between the version queried and the version the caller depends on.",
+      "properties": {
+        "requested_version": {
+          "type": "string",
+          "description": "Version as requested, before resolution."
+        },
+        "resolved_version": {
+          "type": "string",
+          "description": "Version actually queried."
+        },
+        "dependency_version": {
+          "type": "string",
+          "description": "Version echoed back from the request. Absent when the caller supplied none."
+        },
+        "status": {
+          "type": "string",
+          "oneOf": [
+            { "const": "matched", "description": "The supplied dependency version exactly matches the resolved version." },
+            { "const": "mismatch", "description": "The supplied dependency version differs from the resolved version." },
+            { "const": "not_compared", "description": "No dependency version was supplied." }
+          ],
+          "description": "Comparison outcome. Versions agree only on exact equality; semver matching is not used."
+        },
+        "message": {
+          "type": "string",
+          "description": "Explanation of the comparison outcome."
+        }
+      },
+      "required": ["requested_version", "resolved_version", "status", "message"]
+    },
+    "ResponseMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Provenance accompanying a successful outcome.",
+      "properties": {
+        "cache": { "$ref": "#/$defs/CacheMetadata", "description": "Cache provenance when available." },
+        "version": { "$ref": "#/$defs/VersionComparison", "description": "Requested and resolved version provenance." }
+      },
+      "required": ["version"]
+    },
+    "OverviewRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Request for an orientation view of a crate root or public module.",
+      "properties": {
+        "crate_name": {
+          "$ref": "#/$defs/CrateName",
+          "description": "Crate to query."
+        },
+        "version": {
+          "$ref": "#/$defs/RequestedVersion",
+          "description": "Version to query."
+        },
+        "dependency_version": {
+          "$ref": "#/$defs/DependencyVersion",
+          "description": "Version the caller depends on, reported back as a comparison against the resolved version."
+        },
+        "module": {
+          "$ref": "#/$defs/PublicModulePath",
+          "description": "Module to describe. Defaults to the crate root."
+        },
+        "full_docs": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include full module documentation rather than its first paragraph."
+        },
+        "output_format": { "$ref": "#/$defs/OutputFormat", "description": "Requested response encoding. Defaults to JSON." }
+      },
+      "required": ["crate_name"]
+    },
+    "FindRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Request to search a crate's public surface by name, kind, module, or documentation.",
+      "properties": {
+        "crate_name": {
+          "$ref": "#/$defs/CrateName",
+          "description": "Crate to search."
+        },
+        "version": {
+          "$ref": "#/$defs/RequestedVersion",
+          "description": "Version to search."
+        },
+        "dependency_version": {
+          "$ref": "#/$defs/DependencyVersion",
+          "description": "Version the caller depends on, reported back as a comparison against the resolved version."
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Fuzzy item-name query. Mutually exclusive with `doc_query`."
+        },
+        "doc_query": {
+          "$ref": "#/$defs/DocumentationQuery",
+          "description": "Documentation query. Mutually exclusive with `query`."
+        },
+        "kind": {
+          "$ref": "#/$defs/RustdocItemKind",
+          "description": "Restrict results to one item kind."
+        },
+        "module": {
+          "$ref": "#/$defs/PublicModulePath",
+          "description": "Restrict results to one module and its descendants."
+        },
+        "with_summary": {
+          "$ref": "#/$defs/IncludeSummary",
+          "description": "Include a documentation summary on each result."
+        },
+        "cursor": {
+          "$ref": "#/$defs/PageCursor",
+          "description": "Continue a previous search. A cursor is valid only for the query, filters, and resolved version that produced it."
+        },
+        "page_size": {
+          "$ref": "#/$defs/PageSize",
+          "description": "Maximum results per page."
+        },
+        "output_format": { "$ref": "#/$defs/OutputFormat", "description": "Requested response encoding. Defaults to JSON." }
+      },
+      "required": ["crate_name"],
+      "dependentSchemas": {
+        "query": {
+          "not": { "required": ["doc_query"] }
+        },
+        "doc_query": {
+          "not": { "required": ["query"] }
+        }
+      }
+    },
+    "GetItemRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Request for full detail on one public item.",
+      "properties": {
+        "crate_name": {
+          "$ref": "#/$defs/CrateName",
+          "description": "Crate owning the item."
+        },
+        "version": {
+          "$ref": "#/$defs/RequestedVersion",
+          "description": "Version to query."
+        },
+        "dependency_version": {
+          "$ref": "#/$defs/DependencyVersion",
+          "description": "Version the caller depends on, reported back as a comparison against the resolved version."
+        },
+        "path": {
+          "$ref": "#/$defs/PublicItemPath",
+          "description": "Item to retrieve."
+        },
+        "include_impls": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include blanket implementations."
+        },
+        "full_docs": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include full item documentation rather than its first paragraph."
+        },
+        "output_format": { "$ref": "#/$defs/OutputFormat", "description": "Requested response encoding. Defaults to JSON." }
+      },
+      "required": ["crate_name", "path"]
+    },
+    "Field": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A named field with its rendered type.",
+      "properties": {
+        "name": { "type": "string", "description": "Field name. Tuple fields are named by position." },
+        "type": { "type": "string", "description": "Rendered Rust field type." }
+      },
+      "required": ["name", "type"]
+    },
+    "Variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "An enum variant with its field shape.",
+      "properties": {
+        "name": { "type": "string", "description": "Variant name." },
+        "kind": {
+          "$ref": "#/$defs/VariantKind",
+          "description": "Field shape of this variant."
+        },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Field" },
+          "description": "Empty for a unit variant. Tuple variant fields are named by position."
+        }
+      },
+      "required": ["name", "kind", "fields"]
+    },
+    "Method": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A method with its rendered signature.",
+      "properties": {
+        "name": { "type": "string", "description": "Method name." },
+        "signature": { "type": "string", "description": "Rendered method signature." },
+        "impl_constraint": {
+          "type": "string",
+          "description": "Implementation context distinguishing otherwise identical inherent methods. Uses a concrete target or generic implementation header."
+        }
+      },
+      "required": ["name", "signature"]
+    },
+    "AssociatedType": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A trait associated type.",
+      "properties": {
+        "name": { "type": "string", "description": "Associated type name." },
+        "bounds": {
+          "type": "string",
+          "description": "Rendered bounds. Empty when unbounded."
+        },
+        "default": {
+          "type": "string",
+          "description": "Rendered default type. Absent when the trait supplies none."
+        }
+      },
+      "required": ["name", "bounds"]
+    },
+    "AssociatedConst": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A trait associated constant.",
+      "properties": {
+        "name": { "type": "string", "description": "Associated constant name." },
+        "type": { "type": "string", "description": "Rendered constant type." }
+      },
+      "required": ["name", "type"]
+    },
+    "OverviewItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A public item listed in an overview.",
+      "properties": {
+        "name": { "type": "string", "description": "Item name within the described module." },
+        "path": {
+          "type": "string",
+          "description": "Full path accepted by `get_item`."
+        },
+        "kind": { "$ref": "#/$defs/RustdocItemKind", "description": "Rustdoc kind of this item." },
+        "summary": {
+          "type": "string",
+          "description": "First paragraph of the item documentation. Empty when undocumented."
+        },
+        "signature": {
+          "type": "string",
+          "description": "Rendered signature. Present only for kinds that have one."
+        },
+        "deprecated": { "type": "boolean", "description": "Whether the item is marked deprecated." },
+        "reexport": {
+          "type": "boolean",
+          "description": "Whether the item is defined outside the module that exposes it."
+        }
+      },
+      "required": ["name", "path", "kind", "summary", "deprecated", "reexport"]
+    },
+    "KindCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Number of public items of one kind.",
+      "properties": {
+        "kind": { "$ref": "#/$defs/RustdocItemKind", "description": "Rustdoc kind being counted." },
+        "count": { "type": "integer", "minimum": 0, "description": "Number of public items of this kind." }
+      },
+      "required": ["kind", "count"]
+    },
+    "Totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Public item counts for a module.",
+      "properties": {
+        "direct": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/KindCount" },
+          "description": "Items declared in this module only."
+        },
+        "subtree": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/KindCount" },
+          "description": "Items in this module and all descendant modules."
+        }
+      },
+      "required": ["direct", "subtree"]
+    },
+    "Overview": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Orientation view of a crate root or public module.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path of the described module."
+        },
+        "resolved_version": {
+          "type": "string",
+          "description": "Version actually queried."
+        },
+        "docs": {
+          "type": "string",
+          "description": "Module documentation. Absent when undocumented."
+        },
+        "docs_truncated": {
+          "type": "boolean",
+          "description": "Whether docs was shortened. Request `full_docs` to receive it whole."
+        },
+        "totals": { "$ref": "#/$defs/Totals", "description": "Direct and descendant public item counts." },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OverviewItem" },
+          "description": "Items declared directly in this module."
+        }
+      },
+      "required": ["path", "resolved_version", "docs_truncated", "totals", "items"]
+    },
+    "FindRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A single search result.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Full path accepted by `get_item`."
+        },
+        "kind": { "$ref": "#/$defs/RustdocItemKind", "description": "Rustdoc kind of the matched item." },
+        "summary": {
+          "type": "string",
+          "description": "First paragraph of the item documentation. Absent unless requested."
+        }
+      },
+      "required": ["path", "kind"]
+    },
+    "FindResult": {
+      "description": "One page of search results.",
+      "oneOf": [
+        {
+          "title": "CompletePage",
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Final page. No further results exist.",
+          "properties": {
+            "rows": { "type": "array", "items": { "$ref": "#/$defs/FindRow" }, "description": "Rows in this page." },
+            "has_more": { "enum": [false], "description": "False because this is the final page." },
+            "resolved_version": {
+              "type": "string",
+              "description": "Version actually queried."
+            },
+            "hint": {
+              "type": "string",
+              "description": "Guidance for refining a query that matched poorly."
+            }
+          },
+          "required": ["rows", "has_more", "resolved_version"]
+        },
+        {
+          "title": "ContinuationPage",
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Partial page. Further results are reachable with `next_cursor`.",
+          "properties": {
+            "rows": { "type": "array", "items": { "$ref": "#/$defs/FindRow" }, "description": "Rows in this page." },
+            "next_cursor": {
+              "$ref": "#/$defs/PageCursor",
+              "description": "Pass as cursor to retrieve the next page."
+            },
+            "has_more": { "enum": [true], "description": "True because another page is available." },
+            "resolved_version": {
+              "type": "string",
+              "description": "Version actually queried."
+            },
+            "hint": {
+              "type": "string",
+              "description": "Guidance for refining a query that matched poorly."
+            }
+          },
+          "required": ["rows", "next_cursor", "has_more", "resolved_version"]
+        }
+      ]
+    },
+    "ItemDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Full detail for one public item.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Canonical path of the returned item."
+        },
+        "kind": { "$ref": "#/$defs/RustdocItemKind", "description": "Rustdoc kind of the returned item." },
+        "docs": {
+          "type": "string",
+          "description": "Item documentation. Absent when undocumented."
+        },
+        "docs_truncated": {
+          "type": "boolean",
+          "description": "Whether docs was shortened. Request `full_docs` to receive it whole."
+        },
+        "signature": {
+          "type": "string",
+          "description": "Rendered signature. Present only for kinds that have one."
+        },
+        "impl_constraint": {
+          "type": "string",
+          "description": "Implementation context for an inherent method. Uses a concrete target or generic implementation header."
+        },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Field" },
+          "description": "Public fields of a struct or union. Empty for other kinds."
+        },
+        "variants": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Variant" },
+          "description": "Variants of an enum. Empty for other kinds."
+        },
+        "non_exhaustive": {
+          "type": "boolean",
+          "description": "Whether the item cannot be exhaustively matched or constructed by downstream crates."
+        },
+        "methods": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Method" },
+          "description": "Inherent methods. Empty for a trait."
+        },
+        "required_methods": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Method" },
+          "description": "Trait methods an implementor must define."
+        },
+        "provided_methods": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Method" },
+          "description": "Trait methods with a default body."
+        },
+        "assoc_types": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AssociatedType" },
+          "description": "Associated types of a trait."
+        },
+        "consts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AssociatedConst" },
+          "description": "Associated constants of a trait."
+        },
+        "trait_impls": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Rendered trait implementations, excluding auto traits and blanket implementations."
+        },
+        "derives": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Traits implemented through a derive attribute."
+        },
+        "auto_traits": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Compiler-inferred marker traits."
+        },
+        "blanket_impls": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Implementations supplied by generic impls. Absent unless `include_impls` was requested."
+        },
+        "resolved_version": {
+          "type": "string",
+          "description": "Version actually queried."
+        }
+      },
+      "required": [
+        "path", "kind", "docs_truncated", "fields", "variants", "non_exhaustive",
+        "methods", "required_methods", "provided_methods", "assoc_types", "consts",
+        "trait_impls", "derives", "auto_traits", "resolved_version"
+      ]
+    },
+    "InvalidRequestError": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The request violated the contract. Retrying without changing it will fail again.",
+      "properties": {
+        "code": { "type": "string", "oneOf": [{ "const": "invalid_request", "description": "The request violates the published contract." }], "description": "Stable machine-readable error code." },
+        "message": { "type": "string", "description": "Human-readable explanation of the rejected request." },
+        "field": {
+          "type": "string",
+          "description": "Request property that was rejected. Absent when no single property is at fault."
+        }
+      },
+      "required": ["code", "message"]
+    },
+    "CrateNotFoundError": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "No published crate matches the requested name and version.",
+      "properties": {
+        "code": { "type": "string", "oneOf": [{ "const": "crate_not_found", "description": "No matching published crate was found." }], "description": "Stable machine-readable error code." },
+        "message": { "type": "string", "description": "Human-readable explanation of the lookup failure." },
+        "crate_name": { "type": "string", "description": "Requested crate name." },
+        "resolved_version": { "type": "string", "description": "Version that could not be resolved." }
+      },
+      "required": ["code", "message", "crate_name", "resolved_version"]
+    },
+    "ModuleNotFoundError": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The crate resolved but exposes no such public module.",
+      "properties": {
+        "code": { "type": "string", "oneOf": [{ "const": "module_not_found", "description": "The requested public module is absent." }], "description": "Stable machine-readable error code." },
+        "message": { "type": "string", "description": "Human-readable explanation of the lookup failure." },
+        "crate_name": { "type": "string", "description": "Requested crate name." },
+        "resolved_version": { "type": "string", "description": "Version that was queried." },
+        "module": { "type": "string", "description": "Requested public module path." }
+      },
+      "required": ["code", "message", "crate_name", "resolved_version", "module"]
+    },
+    "ItemNotFoundError": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The crate resolved but exposes no such public item.",
+      "properties": {
+        "code": { "type": "string", "oneOf": [{ "const": "item_not_found", "description": "The requested public item is absent." }], "description": "Stable machine-readable error code." },
+        "message": { "type": "string", "description": "Human-readable explanation of the lookup failure." },
+        "crate_name": { "type": "string", "description": "Requested crate name." },
+        "resolved_version": { "type": "string", "description": "Version that was queried." },
+        "path": { "type": "string", "description": "Requested public item path." }
+      },
+      "required": ["code", "message", "crate_name", "resolved_version", "path"]
+    },
+    "UnsupportedRustdocFormatError": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The crate's rustdoc data uses a format version this contract cannot read.",
+      "properties": {
+        "code": { "type": "string", "oneOf": [{ "const": "unsupported_rustdoc_format", "description": "The rustdoc format is outside the supported range." }], "description": "Stable machine-readable error code." },
+        "message": { "type": "string", "description": "Human-readable explanation of the format mismatch." },
+        "found": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Format version encountered."
+        }
+      },
+      "required": ["code", "message", "found"]
+    },
+    "SourceUnavailableError": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Rustdoc data could not be retrieved. Always safe to retry.",
+      "properties": {
+        "code": { "type": "string", "oneOf": [{ "const": "source_unavailable", "description": "Rustdoc data could not be retrieved." }], "description": "Stable machine-readable error code." },
+        "message": { "type": "string", "description": "Human-readable explanation of the unavailable source." },
+        "retryable": { "type": "boolean", "enum": [true], "description": "Always true because retrying may succeed later." }
+      },
+      "required": ["code", "message", "retryable"]
+    },
+    "OperationFailedError": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The operation failed for a reason no other error classifies.",
+      "properties": {
+        "code": { "type": "string", "oneOf": [{ "const": "operation_failed", "description": "No more specific error classifies the failure." }], "description": "Stable machine-readable error code." },
+        "message": { "type": "string", "description": "Human-readable explanation of the failure." },
+        "retryable": {
+          "type": "boolean",
+          "description": "Whether an identical request may succeed later."
+        },
+        "diagnostic_id": {
+          "type": "string",
+          "description": "Correlates this failure with a server log entry."
+        }
+      },
+      "required": ["code", "message", "retryable"]
+    },
+    "ApiError": {
+      "description": "Typed failure returned in place of a result.",
+      "oneOf": [
+        { "$ref": "#/$defs/InvalidRequestError", "title": "InvalidRequestError", "description": "The request violates the contract." },
+        { "$ref": "#/$defs/CrateNotFoundError", "title": "CrateNotFoundError", "description": "No matching published crate exists." },
+        { "$ref": "#/$defs/ModuleNotFoundError", "title": "ModuleNotFoundError", "description": "The requested public module is absent." },
+        { "$ref": "#/$defs/ItemNotFoundError", "title": "ItemNotFoundError", "description": "The requested public item is absent." },
+        { "$ref": "#/$defs/UnsupportedRustdocFormatError", "title": "UnsupportedRustdocFormatError", "description": "The rustdoc format is unsupported." },
+        { "$ref": "#/$defs/SourceUnavailableError", "title": "SourceUnavailableError", "description": "Rustdoc data is temporarily unavailable." },
+        { "$ref": "#/$defs/OperationFailedError", "title": "OperationFailedError", "description": "The operation failed without a more specific classification." }
+      ]
+    },
+    "OverviewSuccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A completed overview.",
+      "properties": {
+        "status": { "type": "string", "oneOf": [{ "const": "ok", "description": "The operation completed successfully." }], "description": "Outcome status discriminator." },
+        "result": { "$ref": "#/$defs/Overview", "description": "The requested overview." },
+        "metadata": { "$ref": "#/$defs/ResponseMetadata", "description": "Provenance for the completed operation." }
+      },
+      "required": ["status", "result", "metadata"]
+    },
+    "FindSuccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A completed search.",
+      "properties": {
+        "status": { "type": "string", "oneOf": [{ "const": "ok", "description": "The operation completed successfully." }], "description": "Outcome status discriminator." },
+        "result": { "$ref": "#/$defs/FindResult", "description": "The requested search page." },
+        "metadata": { "$ref": "#/$defs/ResponseMetadata", "description": "Provenance for the completed operation." }
+      },
+      "required": ["status", "result", "metadata"]
+    },
+    "GetItemSuccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A completed item lookup.",
+      "properties": {
+        "status": { "type": "string", "oneOf": [{ "const": "ok", "description": "The operation completed successfully." }], "description": "Outcome status discriminator." },
+        "result": { "$ref": "#/$defs/ItemDetail", "description": "Full detail for the requested item." },
+        "metadata": { "$ref": "#/$defs/ResponseMetadata", "description": "Provenance for the completed operation." }
+      },
+      "required": ["status", "result", "metadata"]
+    },
+    "ErrorOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A failed operation carrying a typed error.",
+      "properties": {
+        "status": { "type": "string", "oneOf": [{ "const": "error", "description": "The operation failed." }], "description": "Outcome status discriminator." },
+        "error": { "$ref": "#/$defs/ApiError", "description": "Typed error explaining the failure." }
+      },
+      "required": ["status", "error"]
+    },
+    "OverviewOutcome": {
+      "description": "Result of an overview request.",
+      "oneOf": [
+        { "$ref": "#/$defs/OverviewSuccess", "title": "OverviewSuccess", "description": "A completed overview." },
+        { "$ref": "#/$defs/ErrorOutcome", "title": "ErrorOutcome", "description": "A failed overview operation." }
+      ]
+    },
+    "FindOutcome": {
+      "description": "Result of a search request.",
+      "oneOf": [
+        { "$ref": "#/$defs/FindSuccess", "title": "FindSuccess", "description": "A completed search." },
+        { "$ref": "#/$defs/ErrorOutcome", "title": "ErrorOutcome", "description": "A failed search operation." }
+      ]
+    },
+    "GetItemOutcome": {
+      "description": "Result of an item lookup request.",
+      "oneOf": [
+        { "$ref": "#/$defs/GetItemSuccess", "title": "GetItemSuccess", "description": "A completed item lookup." },
+        { "$ref": "#/$defs/ErrorOutcome", "title": "ErrorOutcome", "description": "A failed item lookup." }
+      ]
+    }
+  }
+}

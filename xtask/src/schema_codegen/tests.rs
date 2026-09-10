@@ -1,6 +1,6 @@
-use super::{codegen_schema, defaults, generate_types, mcp};
+use super::{add_strict_option_deserializers, codegen_schema, defaults, generate_types, mcp};
 
-const SCHEMA: &str = include_str!("../../../schema/rustdoc-query.v1.schema.json");
+const SCHEMA: &str = include_str!("../../../schema/rustdoc-query.v2.schema.json");
 
 fn canonical_schema() -> serde_json::Value {
     serde_json::from_str(SCHEMA).expect("canonical schema is valid JSON")
@@ -58,6 +58,108 @@ fn enum_defaults_belong_to_the_generated_type_not_private_service_constants() {
     assert!(!private_defaults.contains("OUTPUT_FORMAT"));
     assert!(generated.contains("impl ::std::default::Default for OutputFormat"));
     assert!(generated.contains("Self::Json"));
+}
+
+#[test]
+fn public_schema_nodes_are_documented_and_emit_variant_docs() {
+    let schema = canonical_schema();
+    let definitions = schema["$defs"]
+        .as_object()
+        .expect("canonical schema declares definitions");
+
+    for (name, definition) in definitions {
+        assert!(
+            definition
+                .get("description")
+                .and_then(serde_json::Value::as_str)
+                .is_some(),
+            "{name} needs a description"
+        );
+        if let Some(properties) = definition
+            .get("properties")
+            .and_then(serde_json::Value::as_object)
+        {
+            for (property, schema) in properties {
+                assert!(
+                    schema
+                        .get("description")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some(),
+                    "{name}.{property} needs a description"
+                );
+            }
+        }
+        if let Some(branches) = definition
+            .get("oneOf")
+            .and_then(serde_json::Value::as_array)
+        {
+            for (index, branch) in branches.iter().enumerate() {
+                assert!(
+                    branch
+                        .get("description")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some(),
+                    "{name}.oneOf[{index}] needs a description"
+                );
+            }
+        }
+    }
+
+    let generated = generate_types(&schema).expect("types generate");
+    for documentation in [
+        "Emit the canonical JSON outcome.",
+        "A Rust module.",
+        "Final page. No further results exist.",
+        "The request violates the contract.",
+        "Maximum rows to return in this page.",
+    ] {
+        assert!(generated.contains(documentation));
+    }
+}
+
+#[test]
+fn strict_option_deserializers_follow_schema_optional_fields_through_the_ast() {
+    let source = r#"
+        pub struct FindRequest {
+            #[serde(skip_serializing_if = "::std::option::Option::is_none", default)]
+            pub with_summary: ::std::option::Option<IncludeSummary>,
+        }
+    "#;
+
+    let generated = add_strict_option_deserializers(&canonical_schema(), source)
+        .expect("strict option attributes generate");
+
+    assert!(generated.contains("deserialize_with = \"super::strict_option::deserialize\""));
+}
+
+#[test]
+fn strict_option_deserializers_skip_option_fields_that_are_required_by_the_schema() {
+    let source = r#"
+        pub struct FindRequest {
+            #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+            pub crate_name: ::std::option::Option<CrateName>,
+        }
+    "#;
+
+    let generated = add_strict_option_deserializers(&canonical_schema(), source)
+        .expect("strict option attributes generate");
+
+    assert!(!generated.contains("deserialize_with = \"super::strict_option::deserialize\""));
+}
+
+#[test]
+fn strict_option_deserializers_match_schema_fields_through_serde_renames() {
+    let source = r#"
+        pub struct FindRequest {
+            #[serde(rename = "with_summary", default)]
+            pub with_summary_value: ::std::option::Option<IncludeSummary>,
+        }
+    "#;
+
+    let generated = add_strict_option_deserializers(&canonical_schema(), source)
+        .expect("strict option attributes generate");
+
+    assert!(generated.contains("deserialize_with = \"super::strict_option::deserialize\""));
 }
 
 #[test]

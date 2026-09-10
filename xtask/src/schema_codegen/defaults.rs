@@ -82,7 +82,7 @@ fn is_string_enum_default(schema: &Value, spec: &Spec) -> bool {
         .and_then(|definitions| definitions.get(definition_name))
         .is_some_and(|definition| {
             definition.get("default").is_some_and(Value::is_string)
-                && definition.get("enum").is_some_and(Value::is_array)
+                && string_enum_values(definition).is_some()
         })
 }
 
@@ -105,10 +105,10 @@ pub(super) fn type_default_impls(schema: &Value) -> Result<String, String> {
         let Some(default) = definition.get("default").and_then(Value::as_str) else {
             continue;
         };
-        let Some(values) = definition.get("enum").and_then(Value::as_array) else {
+        let Some(values) = string_enum_values(definition) else {
             continue;
         };
-        if !values.iter().any(|value| value.as_str() == Some(default)) {
+        if !values.contains(&default) {
             return Err(format!(
                 "{} default must be one of its string enum values",
                 spec.pointer
@@ -125,6 +125,23 @@ pub(super) fn type_default_impls(schema: &Value) -> Result<String, String> {
     }
 
     Ok(impls)
+}
+
+/// Returns the allowed strings from either supported canonical enum shape.
+///
+/// A flat `enum` remains useful for simple validation, while `oneOf` with
+/// singleton `const` branches additionally carries per-variant documentation.
+fn string_enum_values(definition: &Value) -> Option<Vec<&str>> {
+    if let Some(values) = definition.get("enum").and_then(Value::as_array) {
+        return values.iter().map(Value::as_str).collect();
+    }
+
+    definition
+        .get("oneOf")
+        .and_then(Value::as_array)?
+        .iter()
+        .map(|branch| branch.get("const").and_then(Value::as_str))
+        .collect()
 }
 
 fn resolved_default<'a>(

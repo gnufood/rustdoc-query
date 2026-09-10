@@ -1,15 +1,19 @@
 //! Public JSON/TOON serialization parity tests.
 
 use rustdoc_query::{
-    contract::generated::{FindOutcome, OutputFormat, OverviewRequest},
+    contract::generated::{
+        FindOutcome, FindRequest, GetItemOutcome, GetItemRequest, OutputFormat, OverviewOutcome,
+        OverviewRequest,
+    },
     service::RustdocQueryService,
 };
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
 
 fn default_output_format() -> OutputFormat {
     let schema: Value =
-        serde_json::from_str(include_str!("../schema/rustdoc-query.v1.schema.json"))
+        serde_json::from_str(include_str!("../schema/rustdoc-query.v2.schema.json"))
             .expect("canonical schema is valid JSON");
     let default = schema
         .pointer("/$defs/OutputFormat/default")
@@ -18,21 +22,52 @@ fn default_output_format() -> OutputFormat {
     OutputFormat::from_str(default).expect("schema output format default is valid")
 }
 
-#[test]
-fn generated_outcomes_have_matching_json_and_toon_serializations() {
-    let expected: Value = serde_json::from_str(include_str!("fixtures/schema/find-success.json"))
-        .expect("fixture JSON is valid");
-    let outcome: FindOutcome =
-        serde_json::from_value(expected.clone()).expect("fixture deserializes as a public outcome");
+fn assert_fixture_serialization<T>(fixture: &str)
+where
+    T: DeserializeOwned + Serialize,
+{
+    let expected: Value = serde_json::from_str(fixture).expect("fixture JSON is valid");
+    let value: T =
+        serde_json::from_value(expected.clone()).expect("fixture deserializes as a public value");
 
     assert_eq!(
-        RustdocQueryService::json_value(&outcome).expect("JSON serialization succeeds"),
+        RustdocQueryService::json_value(&value).expect("JSON serialization succeeds"),
         expected
     );
 
-    let toon = RustdocQueryService::toon(&outcome).expect("TOON serialization succeeds");
+    let toon = RustdocQueryService::toon(&value).expect("TOON serialization succeeds");
     let decoded: Value = toon_format::decode_default(&toon).expect("TOON decodes to JSON");
     assert_eq!(decoded, expected);
+}
+
+#[test]
+fn generated_requests_have_matching_json_and_toon_serializations() {
+    assert_fixture_serialization::<OverviewRequest>(include_str!(
+        "fixtures/schema/overview-request.json"
+    ));
+    assert_fixture_serialization::<FindRequest>(include_str!(
+        "fixtures/schema/find-name-request.json"
+    ));
+    assert_fixture_serialization::<FindRequest>(include_str!(
+        "fixtures/schema/find-doc-request.json"
+    ));
+    assert_fixture_serialization::<GetItemRequest>(include_str!(
+        "fixtures/schema/get-item-request.json"
+    ));
+}
+
+#[test]
+fn generated_outcomes_have_matching_json_and_toon_serializations() {
+    assert_fixture_serialization::<OverviewOutcome>(include_str!(
+        "fixtures/schema/overview-success.json"
+    ));
+    assert_fixture_serialization::<OverviewOutcome>(include_str!(
+        "fixtures/schema/overview-success-without-cache.json"
+    ));
+    assert_fixture_serialization::<FindOutcome>(include_str!("fixtures/schema/find-success.json"));
+    assert_fixture_serialization::<GetItemOutcome>(include_str!(
+        "fixtures/schema/get-item-error.json"
+    ));
 }
 
 #[test]
