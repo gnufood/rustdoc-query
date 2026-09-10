@@ -16,7 +16,7 @@ The supported Rust API is:
 Other modules are implementation details.
 
 The service operates on public API only. It provides crate and module overviews,
-public item detail, name search, and documentation search. The generated v1
+public item detail, name search, and documentation search. The generated v2
 contract is the source of truth for request fields, defaults, and outcomes.
 
 ## Output formats

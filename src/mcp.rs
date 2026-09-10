@@ -36,6 +36,7 @@ inner paths for publicly reachable items, and `Parent::method` paths to retrieve
 method's signature.";
 
 #[derive(Debug)]
+/// Embeddable MCP server backed by [`RustdocQueryService`].
 pub struct RustdocMcpServer {
     service: RustdocQueryService,
     output_format: OutputFormat,

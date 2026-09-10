@@ -1,0 +1,13 @@
+error[E0603]: module `error` is private
+ --> tests/ui/private_error_module.rs:1:20
+  |
+1 | use rustdoc_query::error::Error;
+  |                    ^^^^^  ----- enum `Error` is not publicly re-exported
+  |                    |
+  |                    private module
+  |
+note: the module `error` is defined here
+ --> src/lib.rs
+  |
+  | mod error;
+  | ^^^^^^^^^

@@ -1,14 +1,11 @@
-//! Query crate public APIs from rustdoc JSON.
+//! Query Rust crates' public APIs from rustdoc JSON.
 //!
-//! Exposes generated contract types, the service boundary, and MCP transport.
+//! The supported API consists of generated request and outcome types in
+//! [`contract::generated`], the direct-library [`service::RustdocQueryService`],
+//! and the embeddable MCP adapter [`mcp::RustdocMcpServer`].
 //!
-//! ```compile_fail
-//! use rustdoc_query::Error;
-//! ```
-//!
-//! ```compile_fail
-//! use rustdoc_query::error::Error;
-//! ```
+//! Construct a service, submit a generated request, and match its generated
+//! outcome. The service fetches and caches rustdoc data as needed.
 
 #![cfg_attr(
     not(test),

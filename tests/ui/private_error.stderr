@@ -1,0 +1,11 @@
+error[E0603]: enum `Error` is private
+ --> tests/ui/private_error.rs:1:20
+  |
+1 | use rustdoc_query::Error;
+  |                    ^^^^^ private enum
+  |
+note: the enum `Error` is defined here
+ --> src/lib.rs
+  |
+  | pub(crate) use error::{Error, Result};
+  |                        ^^^^^

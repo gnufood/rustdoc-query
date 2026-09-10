@@ -19,6 +19,9 @@ test:
 lint:
     cargo clippy {{ workspace_targets }} -- -D warnings
 
+rustdoc:
+    cargo rustdoc --lib -- -D warnings
+
 fmt:
     cargo fmt --all
 
@@ -35,7 +38,7 @@ pre-commit: fmt schema check lint
 
 pre-push: fmt-check schema check lint test
 
-ci: fmt-check schema check lint test build
+ci: fmt-check schema check lint test rustdoc build
 
 release:
     #!/usr/bin/env bash
