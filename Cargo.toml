@@ -1,6 +1,6 @@
 [package]
 name = "rustdoc-query"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Rust library and MCP server for querying crate public APIs from rustdoc JSON"
 license = "MIT OR Apache-2.0"

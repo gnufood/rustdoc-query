@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [0.2.0] - 2026-09-10
+
+### Added
+- **contract:** Publish documented v2 schema: Regenerate the public contract and MCP artifacts from the v2 schema. Preserve generated type names, request and outcome fields, defaults, JSON/TOON serialization, service methods, and MCP tool names.
+
+### Changed
+- Complete public API and schema pipeline documentation: Document the crate, contract, and MCP server for library consumers. Describe schema generation, version ownership, and verification commands. Deny missing documentation and build rustdocs with warnings denied in CI.
+
+### Fixed
+- **storage:** Invalidate private persisted formats at v2: Version cache sidecars, FTS indices, and find cursors independently. Reject stale sidecars and cursors safely, and rebuild stale FTS indices.
 ## [0.1.0] - 2026-09-10
 
 ### Added
